@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartTax POS - Admin Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-title">SmartTax POS - Admin Dashboard</div>
+    <div class="header-actions">
+      <button class="btn-secondary btn-small" onclick="window.location.href='pos.html'">Back to POS</button>
+      <button class="btn-danger btn-small" onclick="window.logout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- STATISTICS SECTION -->
+    <h2 style="margin-bottom: 20px; margin-top: 20px; color: #b0b0b0;">Dashboard Statistics</h2>
+    <div class="dashboard-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Sales (Today)</div>
+        <div class="stat-value" id="totalSalesCount">0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Revenue (Today)</div>
+        <div class="stat-value">₹<span id="totalRevenue">0</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">GST Collected</div>
+        <div class="stat-value">₹<span id="totalGST">0</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Avg. Transaction</div>
+        <div class="stat-value">₹<span id="avgTransaction">0</span></div>
+      </div>
+    </div>
+
+    <!-- SALES BREAKDOWN -->
+    <h2 style="margin: 30px 0 20px 0; color: #b0b0b0;">Sales Breakdown by GST Rate</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>GST Rate</th>
+            <th>Count</th>
+            <th>Revenue</th>
+            <th>GST Amount</th>
+          </tr>
+        </thead>
+        <tbody id="gstBreakdownTable">
+          <tr>
+            <td colspan="4" style="text-align: center; color: #b0b0b0;">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RECENT SALES -->
+    <h2 style="margin: 30px 0 20px 0; color: #b0b0b0;">Recent Sales</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>GST Rate</th>
+            <th>GST Amount</th>
+          </tr>
+        </thead>
+        <tbody id="recentSalesTable">
+          <tr>
+            <td colspan="5" style="text-align: center; color: #b0b0b0;">Loading sales data...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
