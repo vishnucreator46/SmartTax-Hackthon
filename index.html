@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartTax POS - Login</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <h1>SmartTax POS</h1>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="Enter your email" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter your password" required>
+        </div>
+
+        <button type="submit" class="btn-primary btn-block">Login</button>
+        <div id="message" class="error-message"></div>
+      </form>
+
+      <div style="text-align: center; margin: 15px 0; color: #b0b0b0;">OR</div>
+      
+      <button id="googleLoginBtn" class="btn-primary btn-block" style="background-color: #4285F4; border-color: #4285F4;">Sign in with Google</button>
+
+    </div>
+  </div>
+
+  <!-- REGISTRATION MODAL -->
+  <div id="registrationModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header" style="justify-content: center; margin-bottom: 15px;">
+        <h3 style="color: var(--text-primary);">Complete Registration</h3>
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label for="regName" style="display: block; color: var(--text-secondary); margin-bottom: 5px;">Full Name</label>
+        <input type="text" id="regName" placeholder="Enter your full name" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 20px;">
+        <label for="regEmpId" style="display: block; color: var(--text-secondary); margin-bottom: 5px;">Employee/Admin ID</label>
+        <input type="text" id="regEmpId" placeholder="Enter ID" style="width: 100%;">
+      </div>
+      <button class="btn-primary btn-block" onclick="window.completeRegistration()">Save & Continue</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const messageEl = document.getElementById('message');
+
+      try {
+        messageEl.textContent = 'Logging in...';
+        messageEl.className = 'success-message';
+        await window.login(email, password);
+      } catch (error) {
+        messageEl.textContent = 'Error: ' + error.message;
+        messageEl.className = 'error-message';
+      }
+    });
+
+    document.getElementById('googleLoginBtn').addEventListener('click', async () => {
+      const messageEl = document.getElementById('message');
+      try {
+        messageEl.textContent = 'Redirecting to Google...';
+        messageEl.className = 'success-message';
+        await window.loginWithGoogle();
+      } catch (error) {
+        messageEl.textContent = 'Error: ' + error.message;
+        messageEl.className = 'error-message';
+      }
+    });
+  </script>
+</body>
+</html>
