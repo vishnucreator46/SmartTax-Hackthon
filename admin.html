@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartTax POS - Admin Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-title">SmartTax POS - Admin Dashboard</div>
+    <div class="header-actions">
+      <button id="addStockBtn" class="btn-primary btn-small" style="margin-right: 10px;">Add Stock</button>
+      <button id="downloadReportBtn" class="btn-primary btn-small" style="margin-right: 10px;">Download Report</button>
+      <button class="btn-secondary btn-small" onclick="window.location.href='pos.html'">Back to POS</button>
+      <button id="resetDatabase" class="btn-danger btn-small" style="margin-right: 5px; background-color: #d9534f;">Reset Database</button>
+      <button class="btn-danger btn-small" onclick="window.logout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- STATISTICS SECTION -->
+    <h2 style="margin-bottom: 20px; margin-top: 20px; color: #b0b0b0;">Dashboard Statistics</h2>
+    <div class="dashboard-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Sales (Today)</div>
+        <div class="stat-value" id="totalSalesCount">0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Revenue (Today)</div>
+        <div class="stat-value">₹<span id="totalRevenue">0</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">GST Collected</div>
+        <div class="stat-value">₹<span id="totalGST">0</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Avg. Transaction</div>
+        <div class="stat-value">₹<span id="avgTransaction">0</span></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS CHART -->
+    <h2 style="margin: 30px 0 20px 0; color: #b0b0b0;">Sales Analytics</h2>
+    <div class="card">
+      <canvas id="salesChart" style="max-height: 400px;"></canvas>
+    </div>
+
+    <!-- SALES BREAKDOWN -->
+    <h2 style="margin: 30px 0 20px 0; color: #b0b0b0;">Sales Breakdown by GST Rate</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>GST Rate</th>
+            <th>Count</th>
+            <th>Revenue</th>
+            <th>GST Amount</th>
+          </tr>
+        </thead>
+        <tbody id="gstBreakdownTable">
+          <tr>
+            <td colspan="4" style="text-align: center; color: #b0b0b0;">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RECENT SALES -->
+    <h2 style="margin: 30px 0 20px 0; color: #b0b0b0;">Recent Sales</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>GST Rate</th>
+            <th>GST Amount</th>
+          </tr>
+        </thead>
+        <tbody id="recentSalesTable">
+          <tr>
+            <td colspan="5" style="text-align: center; color: #b0b0b0;">Loading sales data...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ADD STOCK MODAL -->
+  <div id="addStockModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Stock</h3>
+        <button class="btn-danger btn-small" onclick="document.getElementById('addStockModal').style.display='none'">✕</button>
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Product ID / Barcode (Optional)</label>
+        <input type="text" id="newStockId" placeholder="Leave empty for auto-generated ID" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Product Name</label>
+        <input type="text" id="newStockName" placeholder="Enter product name" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Cost (₹)</label>
+        <input type="number" id="newStockCost" placeholder="Enter cost" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Quantity</label>
+        <input type="number" id="newStockQnty" placeholder="Enter quantity" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Image URL</label>
+        <input type="text" id="newStockImg" placeholder="Enter image URL" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; margin-bottom:5px; color:#9ca3af;">Tax Rate (%)</label>
+        <input type="number" id="newStockTax" placeholder="Enter tax rate (e.g., 5 or 18)" style="width: 100%;">
+      </div>
+      <div class="modal-footer" style="margin-top: 10px;">
+        <button id="submitNewStockBtn" class="btn-success btn-block">Add Product</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
