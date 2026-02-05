@@ -267,18 +267,89 @@ window.completeSale = async () => {
     return;
   }
 
+  // Ask for Payment Method
+  if (window.Swal) {
+    const result = await Swal.fire({
+      title: 'Select Payment Method',
+      text: `Total Amount: ₹${window.currentSaleData.grandTotal.toFixed(2)}`,
+      icon: 'question',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Online (Razorpay)',
+      denyButtonText: 'Cash',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#3b82f6',
+      denyButtonColor: '#10b981',
+      background: '#1e1e1e',
+      color: '#f3f4f6'
+    });
+
+    if (result.isConfirmed) {
+      initiateRazorpay(customerName, customerPhone);
+    } else if (result.isDenied) {
+      const completeSaleBtn = document.getElementById('completeSaleBtn');
+      completeSaleBtn.disabled = true;
+      completeSaleBtn.textContent = 'Processing...';
+      const cashId = 'CASH_' + Date.now();
+      await finalizeSale(cashId, 'Cash');
+    }
+  }
+};
+
+function initiateRazorpay(customerName, customerPhone) {
   const completeSaleBtn = document.getElementById('completeSaleBtn');
   completeSaleBtn.disabled = true;
-  completeSaleBtn.textContent = 'Processing...';
+  completeSaleBtn.textContent = 'Processing Payment...';
+
+  const finalTotal = window.currentSaleData.grandTotal;
+  const amountInPaisa = Math.round(finalTotal * 100);
+
+  const options = {
+    "key": "rzp_test_SC45mpFf90mZc4", // Test Key ID
+    "amount": amountInPaisa,
+    "currency": "INR",
+    "name": "SmartTax POS",
+    "description": "Sale Transaction",
+    "handler": async function (response) {
+      await finalizeSale(response.razorpay_payment_id, 'Razorpay');
+    },
+    "prefill": {
+      "name": customerName,
+      "contact": customerPhone
+    },
+    "theme": {
+      "color": "#1e1e1e"
+    },
+    "modal": {
+      "ondismiss": function() {
+        completeSaleBtn.disabled = false;
+        completeSaleBtn.textContent = 'Complete Sale';
+      }
+    }
+  };
+
+  const rzp1 = new Razorpay(options);
+  rzp1.on('payment.failed', function (response){
+    alert("Payment Failed: " + response.error.description);
+    completeSaleBtn.disabled = false;
+    completeSaleBtn.textContent = 'Complete Sale';
+  });
+  rzp1.open();
+}
+
+// Helper to finalize sale after payment
+async function finalizeSale(paymentId, paymentMethod) {
+  const completeSaleBtn = document.getElementById('completeSaleBtn');
+  const customerName = document.getElementById('customerName').value.trim();
+  const customerPhone = document.getElementById('customerPhone').value.trim();
 
   try {
-    // Capture final total before reset
     const finalTotal = window.currentSaleData.grandTotal;
-
-    // Prepare sale data
     const saleData = {
       customerName,
       customerPhone,
+      paymentId: paymentId,
+      paymentMethod: paymentMethod,
       items: window.cart.map(item => ({
         id: item.id,
         name: item.name,
@@ -297,27 +368,25 @@ window.completeSale = async () => {
       timestamp: serverTimestamp()
     };
 
-    // Save to Firestore collection "sales"
     const docRef = await addDoc(collection(db, 'sales'), saleData);
     console.log('Sale saved with ID:', docRef.id);
 
-    // Update Inventory: Reduce quantity for each sold item
+    // Update Inventory
     await Promise.all(window.cart.map(item => 
       updateDoc(doc(db, 'products', item.id), {
         qnty: increment(-item.quantity)
       })
     ));
-    loadProducts(); // Refresh UI to show updated stock
 
-    // Generate Challan PDF
+    loadProducts();
+
     await window.generateChallan(saleData, 'CUSTOMER');
     await window.generateChallan(saleData, 'OFFICE');
 
-    // Show success message (SweetAlert2)
     if (window.Swal) {
       await window.Swal.fire({
         title: 'Sale Completed!',
-        text: `Total: ₹${finalTotal.toFixed(2)}`,
+        text: `Total: ₹${finalTotal.toFixed(2)}\nPayment ID: ${paymentId}`,
         icon: 'success',
         confirmButtonText: 'OK',
         confirmButtonColor: '#10b981',
@@ -325,10 +394,9 @@ window.completeSale = async () => {
         color: '#f3f4f6'
       });
     } else {
-      alert(`Sale completed successfully!\nTotal: ₹${finalTotal.toFixed(2)}`);
+      alert(`Sale completed successfully!\nTotal: ₹${finalTotal.toFixed(2)}\nPayment ID: ${paymentId}`);
     }
 
-    // Reset cart
     window.cart = [];
     document.getElementById('customerName').value = '';
     document.getElementById('customerPhone').value = '';
@@ -342,7 +410,7 @@ window.completeSale = async () => {
     completeSaleBtn.disabled = false;
     completeSaleBtn.textContent = 'Complete Sale';
   }
-};
+}
 
 // Initialize empty totals
 updateTotals();
@@ -352,8 +420,7 @@ window.seedProducts = async () => {
   const sampleProducts = [
     // TIP: Replace the strings in 'imageUrl' with your own image links (Right Click Image -> Copy Image Address)
     { name: "acer Aspire 3", cost: 27000, taxRate: 18, imageUrl: "https://tse3.mm.bing.net/th/id/OIP.o-OYYRQKQNZWwM1f9KPLYgHaF5?pid=Api&P=0&h=180" },
-    { name: "Mechanical Keyboard", cost: 2500, taxRate: 18, imageUrl: "https://placehold.co/300x200?text=Keyboard" },
-    { name: "24-inch Monitor", cost: 12000, taxRate: 18, imageUrl: "https://placehold.co/300x200?text=Monitor" },
+     { name: "24-inch Monitor", cost: 12000, taxRate: 18, imageUrl: "https://placehold.co/300x200?text=Monitor" },
     { name: "USB-C Hub", cost: 1500, taxRate: 5, imageUrl: "https://placehold.co/300x200?text=USB+Hub" },
     { name: "Laptop Stand", cost: 850, taxRate: 5, imageUrl: "https://placehold.co/300x200?text=Stand" }
   ];

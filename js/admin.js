@@ -1,7 +1,10 @@
 // Admin Dashboard Logic - ES Module
 import { db, auth } from './firebase.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.2/firebase-auth.js';
-import { collection, getDocs, query, where, Timestamp, deleteDoc, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js';
+import { collection, getDocs, query, where, Timestamp, deleteDoc, doc, getDoc, addDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js';
+
+// Store all sales data for reporting
+let allSales = [];
 
 // Initialize admin page on load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -20,6 +23,76 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (e) { console.error('Error fetching profile', e); }
     }
   });
+
+  // Add Stock Handler
+  const addStockBtn = document.getElementById('addStockBtn');
+  const submitStockBtn = document.getElementById('submitNewStockBtn');
+  
+  if (addStockBtn) {
+    addStockBtn.addEventListener('click', () => {
+      const modal = document.getElementById('addStockModal');
+      if (modal) modal.style.display = 'flex';
+    });
+  }
+
+  if (submitStockBtn) {
+    submitStockBtn.addEventListener('click', async () => {
+      const id = document.getElementById('newStockId').value.trim();
+      const name = document.getElementById('newStockName').value;
+      const cost = parseFloat(document.getElementById('newStockCost').value);
+      const qnty = parseInt(document.getElementById('newStockQnty').value);
+      const img = document.getElementById('newStockImg').value;
+      const taxRate = parseInt(document.getElementById('newStockTax').value);
+
+      if (!name || isNaN(cost) || isNaN(qnty) || isNaN(taxRate)) {
+        alert('Please fill all required fields (Name, Cost, Quantity, Tax Rate).');
+        return;
+      }
+
+      try {
+        const productData = {
+          name,
+          cost,
+          qnty,
+          img: img || '',
+          taxRate
+        };
+
+        if (id) {
+          await setDoc(doc(db, 'products', id), productData);
+          alert('Product added successfully with ID: ' + id);
+        } else {
+          const docRef = await addDoc(collection(db, 'products'), productData);
+          alert('Product added successfully with ID: ' + docRef.id);
+        }
+
+        document.getElementById('addStockModal').style.display = 'none';
+        
+        // Clear form
+        document.getElementById('newStockId').value = '';
+        document.getElementById('newStockName').value = '';
+        document.getElementById('newStockCost').value = '';
+        document.getElementById('newStockQnty').value = '';
+        document.getElementById('newStockImg').value = '';
+        document.getElementById('newStockTax').value = '';
+      } catch (error) {
+        console.error('Error adding product:', error);
+        alert('Error adding product: ' + error.message);
+      }
+    });
+  }
+
+  // Delete Stock Handler
+  const deleteStockBtn = document.getElementById('deleteStockBtn');
+  if (deleteStockBtn) {
+    deleteStockBtn.addEventListener('click', openDeleteStockModal);
+  }
+
+  // Download Report Handler
+  const downloadBtn = document.getElementById('downloadReportBtn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', generateSalesReport);
+  }
 
   // Reset Database Handler
   const resetBtn = document.getElementById('resetDatabase');
@@ -57,10 +130,14 @@ async function loadDashboardData() {
     querySnapshot.forEach((doc) => {
       sales.push({ id: doc.id, ...doc.data() });
     });
+    allSales = sales;
 
     // Calculate statistics
     calculateStatistics(sales);
     
+    // Render Sales Chart
+    renderSalesChart(sales);
+
     // Load recent sales
     displayRecentSales(sales);
     
@@ -222,3 +299,179 @@ function displayGSTBreakdown(sales) {
 
   tableBody.innerHTML = rows;
 }
+
+// Generate and download PDF report
+function generateSalesReport() {
+  if (!window.jspdf) {
+    alert('PDF library not loaded. Please refresh the page.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Header
+  doc.setFontSize(18);
+  doc.text('SmartTax POS - Sales Report', 14, 22);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+
+  // Table Data
+  const tableColumn = ["Date", "Time", "Customer", "Products", "Total", "GST"];
+  const tableRows = [];
+
+  // Sort by date (newest first)
+  const sortedSales = [...allSales].sort((a, b) => {
+    const timeA = a.timestamp?.toDate?.() || new Date(0);
+    const timeB = b.timestamp?.toDate?.() || new Date(0);
+    return timeB - timeA;
+  });
+
+  sortedSales.forEach(sale => {
+    const timestamp = sale.timestamp?.toDate?.() || new Date();
+    const dateStr = timestamp.toLocaleDateString('en-IN');
+    const timeStr = timestamp.toLocaleTimeString('en-IN');
+    
+    // Calculate total from items if stored total is 0 or missing
+    let total = sale.total || 0;
+    if (total === 0 && sale.items && sale.items.length > 0) {
+      total = sale.items.reduce((sum, item) => {
+        const itemCost = parseFloat(item.cost || 0);
+        const itemQty = parseInt(item.quantity || 0);
+        return sum + (itemCost * itemQty * (1 + (item.taxRate || 0) / 100));
+      }, 0);
+    }
+    
+    const gstAmount = sale.gstAmount || 0;
+
+    const productDetails = (sale.items || []).map(item => `${item.name} (x${item.quantity})`).join(', ');
+
+    tableRows.push([dateStr, timeStr, sale.customerName || 'N/A', productDetails, total.toFixed(2), gstAmount.toFixed(2)]);
+  });
+
+  // Generate Table
+  doc.autoTable({
+    head: [tableColumn],
+    body: tableRows,
+    startY: 35,
+    theme: 'grid',
+    headStyles: { fillColor: [59, 130, 246] }
+  });
+
+  doc.save(`Sales_Report_${Date.now()}.pdf`);
+}
+
+// Render Sales Analytics Chart
+function renderSalesChart(sales) {
+  const ctx = document.getElementById('salesChart');
+  if (!ctx) return;
+
+  // Group sales by date (YYYY-MM-DD)
+  const salesByDate = {};
+  sales.forEach(sale => {
+    const dateObj = sale.timestamp?.toDate?.() || new Date();
+    const dateKey = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    if (!salesByDate[dateKey]) salesByDate[dateKey] = 0;
+    salesByDate[dateKey] += sale.total || 0;
+  });
+
+  // Sort dates and prepare data
+  const sortedKeys = Object.keys(salesByDate).sort();
+  const labels = sortedKeys.map(key => {
+    const d = new Date(key);
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  });
+  const dataPoints = sortedKeys.map(key => salesByDate[key]);
+
+  // Destroy previous chart instance if exists
+  if (window.salesChartInstance) {
+    window.salesChartInstance.destroy();
+  }
+
+  window.salesChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Daily Revenue (₹)',
+        data: dataPoints,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#9ca3af' } }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: '#374151' },
+          ticks: { color: '#9ca3af' }
+        },
+        x: {
+          grid: { color: '#374151' },
+          ticks: { color: '#9ca3af' }
+        }
+      }
+    }
+  });
+}
+
+// Open Delete Stock Modal
+async function openDeleteStockModal() {
+  const modal = document.getElementById('deleteStockModal');
+  const list = document.getElementById('deleteStockList');
+  if (!modal || !list) return;
+
+  modal.style.display = 'flex';
+  list.innerHTML = '<p style="text-align:center; color:#b0b0b0;">Loading products...</p>';
+
+  try {
+    const querySnapshot = await getDocs(collection(db, 'products'));
+    if (querySnapshot.empty) {
+      list.innerHTML = '<p style="text-align:center; color:#b0b0b0;">No products found.</p>';
+      return;
+    }
+
+    let html = '';
+    querySnapshot.forEach((doc) => {
+      const p = doc.data();
+      html += `
+        <div class="stock-item" style="cursor: pointer; border: 1px solid #374151;" onclick="window.deleteProduct('${doc.id}', '${p.name.replace(/'/g, "\\'")}')">
+          <div style="flex: 1;">
+            <div style="font-weight:bold; color: #ef4444;">${p.name}</div>
+            <div style="font-size:12px; color:#888;">ID: ${doc.id}</div>
+          </div>
+          <div style="color: #ef4444;">🗑️</div>
+        </div>
+      `;
+    });
+    list.innerHTML = html;
+  } catch (error) {
+    console.error('Error loading products for deletion:', error);
+    list.innerHTML = '<p style="text-align:center; color:#dc3545;">Error loading data.</p>';
+  }
+}
+
+// Delete Product Function (Global)
+window.deleteProduct = async (id, name) => {
+  if (confirm(`Are you sure you want to permanently delete "${name}"?`)) {
+    try {
+      await deleteDoc(doc(db, 'products', id));
+      alert('Product deleted successfully.');
+      openDeleteStockModal(); // Refresh list
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Error deleting product: ' + error.message);
+    }
+  }
+};
